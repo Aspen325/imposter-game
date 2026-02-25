@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMPOSTER — Online Multiplayer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════
+       HOME SCREEN
+  ══════════════════════════════════════════════════ -->
+  <div id="screen-home" class="screen active">
+    <div class="container">
+      <header class="logo-header">
+        <div class="logo-title">IMPOSTER</div>
+        <p class="logo-sub">Who among you is lying?</p>
+      </header>
+
+      <div class="card">
+        <div class="field">
+          <label for="player-name">Your Name</label>
+          <input id="player-name" type="text" placeholder="Enter your name…" maxlength="20" autocomplete="off" />
+        </div>
+
+        <button class="btn btn-primary" onclick="createRoom()">Create a Room</button>
+
+        <div class="divider"><span>or join existing</span></div>
+
+        <div class="field">
+          <label for="room-code-input">Room Code</label>
+          <input id="room-code-input" type="text" placeholder="e.g. ABC123" maxlength="6"
+                 autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-size:1.2rem;" />
+        </div>
+        <button class="btn btn-outline" onclick="joinRoom()">Join Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       LOBBY SCREEN
+  ══════════════════════════════════════════════════ -->
+  <div id="screen-lobby" class="screen">
+    <div class="container">
+
+      <div class="room-banner">
+        <p class="room-banner-label">Room Code</p>
+        <div class="room-banner-code" id="display-room-code">——————</div>
+        <button class="btn-chip" onclick="shareRoom()">Share Link</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Players</h3>
+          <span class="badge-count" id="player-count">0</span>
+        </div>
+        <ul id="player-list" class="player-list"></ul>
+      </div>
+
+      <!-- HOST: category + start -->
+      <div id="host-controls" class="card hidden">
+        <h3 class="card-title">Choose a Category</h3>
+        <div id="category-grid" class="category-grid"></div>
+        <button class="btn btn-primary" id="start-btn" onclick="startGame()" disabled>
+          Start Game
+        </button>
+        <p id="start-hint" class="hint-text">Select a category to begin</p>
+      </div>
+
+      <!-- NON-HOST: waiting message -->
+      <div id="waiting-msg" class="card hidden">
+        <div class="waiting-row">
+          <div class="spinner"></div>
+          <span>Waiting for the host to start…</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       ROLE REVEAL SCREEN
+  ══════════════════════════════════════════════════ -->
+  <div id="screen-role-reveal" class="screen">
+    <div class="container">
+
+      <div class="section-header">
+        <h2>Game On!</h2>
+        <div class="category-chip">
+          Category: <strong id="reveal-category"></strong>
+        </div>
+      </div>
+
+      <div class="card reveal-card">
+        <!-- Tap to reveal state -->
+        <div id="role-hidden">
+          <div class="tap-zone">
+            <div class="eye-glyph">👁</div>
+            <h3>Tap to Reveal Your Role</h3>
+            <p class="sub-text">Make sure no one else can see your screen first</p>
+            <button class="btn btn-primary" onclick="revealRole()">Reveal My Role</button>
+          </div>
+        </div>
+
+        <!-- Role shown state -->
+        <div id="role-shown" class="hidden">
+
+          <div id="role-imposter" class="role-display role-imposter hidden">
+            <div class="role-glyph">😈</div>
+            <h2 class="role-title">You are the IMPOSTER</h2>
+            <p class="role-body">You do <strong>NOT</strong> know the secret word.</p>
+            <p class="role-hint">Listen carefully to others' clues and try to blend in!</p>
+          </div>
+
+          <div id="role-innocent" class="role-display role-innocent hidden">
+            <div class="role-glyph">😇</div>
+            <h2 class="role-title">You are NOT the Imposter</h2>
+            <p class="role-body">The secret word is:</p>
+            <div class="secret-word-box" id="secret-word-display"></div>
+            <p class="role-hint">Give clues without making it too obvious!</p>
+          </div>
+
+          <button class="btn btn-ghost" onclick="hideRole()">Hide Role</button>
+        </div>
+      </div>
+
+      <!-- Appears after first reveal -->
+      <div id="proceed-wrap" class="hidden">
+        <button class="btn btn-primary" onclick="proceedToGame()">Continue to Game →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       PLAYING SCREEN
+  ══════════════════════════════════════════════════ -->
+  <div id="screen-playing" class="screen">
+    <div class="container">
+
+      <div class="section-header">
+        <h2>Game in Progress</h2>
+        <div class="category-chip">
+          Category: <strong id="playing-category"></strong>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Players</h3>
+          <span class="badge-count" id="playing-player-count">0</span>
+        </div>
+        <ul id="playing-player-list" class="player-list"></ul>
+      </div>
+
+      <div class="card instructions-card">
+        <h3 class="card-title">How It Works</h3>
+        <ol class="instruction-list">
+          <li>Take turns saying <strong>one word</strong> related to the secret word</li>
+          <li>The Imposter tries to blend in without knowing the word</li>
+          <li>Discuss and vote verbally on who you think is the Imposter</li>
+          <li>When voting is done, end the game to see the reveal</li>
+        </ol>
+      </div>
+
+      <!-- Imposter's end button -->
+      <div id="imposter-controls" class="card end-game-card hidden">
+        <p class="imposter-label">😈 You are the Imposter</p>
+        <p class="sub-text">When the group finishes voting, end the game:</p>
+        <button class="btn btn-danger" onclick="confirmEndGame()">End Game & Reveal</button>
+      </div>
+
+      <!-- Host's fallback end button (only if host is NOT the imposter) -->
+      <div id="host-end-controls" class="card end-game-card hidden">
+        <p class="sub-text">As the host, you can end the game:</p>
+        <button class="btn btn-danger" onclick="confirmEndGame()">End Game & Reveal</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       END GAME SCREEN
+  ══════════════════════════════════════════════════ -->
+  <div id="screen-end" class="screen">
+    <div class="container">
+
+      <div class="section-header">
+        <h2>Game Over!</h2>
+      </div>
+
+      <div class="card reveal-results">
+        <div class="result-row">
+          <span class="result-label">Category</span>
+          <span class="result-value" id="end-category"></span>
+        </div>
+        <div class="divider-thin"></div>
+        <div class="result-row result-center">
+          <span class="result-label">Secret Word</span>
+          <div class="result-word" id="end-word"></div>
+        </div>
+        <div class="divider-thin"></div>
+        <div class="result-row result-center">
+          <span class="result-label">The Imposter was…</span>
+          <div class="result-imposter">
+            😈 <span id="end-imposter-name"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Host: play again button -->
+      <div id="host-play-again" class="card hidden">
+        <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
+        <p class="hint-text">Same players, choose a new category</p>
+      </div>
+
+      <!-- Non-host: waiting for host -->
+      <div id="player-waiting-again" class="card hidden">
+        <div class="waiting-row">
+          <div class="spinner"></div>
+          <span>Waiting for the host to start a new round…</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Categories & Words ─────────────────────────────────────────────
+const CATEGORIES = {
+  "Pop Culture": [
+    "Beyoncé", "Taylor Swift", "Marvel", "TikTok", "Netflix",
+    "iPhone", "YouTube", "Kanye West", "Kim Kardashian", "Instagram",
+    "Disney", "Harry Styles", "Rihanna", "Adele", "BTS",
+    "Dua Lipa", "Elon Musk", "Billie Eilish", "Zendaya", "Bad Bunny"
+  ],
+  "TV Shows": [
+    "Stranger Things", "Breaking Bad", "Friends", "Game of Thrones",
+    "The Office", "Grey's Anatomy", "Squid Game", "Wednesday",
+    "Euphoria", "The Crown", "Succession", "Ozark",
+    "The Mandalorian", "Black Mirror", "Ted Lasso",
+    "Yellowstone", "The Bear", "White Lotus", "House of Dragon", "Severance"
+  ],
+  "Movies": [
+    "Titanic", "Avatar", "The Dark Knight", "Inception",
+    "Avengers", "Jurassic Park", "Star Wars", "The Lion King",
+    "Frozen", "Harry Potter", "Top Gun", "Interstellar",
+    "Gladiator", "The Matrix", "Barbie",
+    "Oppenheimer", "Dune", "Everything Everywhere", "Parasite", "Get Out"
+  ],
+  "Sports": [
+    "Soccer", "Basketball", "Tennis", "Swimming",
+    "Baseball", "Golf", "Boxing", "Olympics",
+    "Super Bowl", "World Cup", "NFL", "NBA",
+    "Formula 1", "Gymnastics", "Volleyball",
+    "Hockey", "Wrestling", "MMA", "Marathon", "Skateboarding"
+  ],
+  "Countries": [
+    "France", "Japan", "Brazil", "Australia",
+    "Canada", "Mexico", "Italy", "China",
+    "India", "Germany", "Spain", "Egypt",
+    "South Korea", "Argentina", "Nigeria",
+    "Russia", "Thailand", "Morocco", "Colombia", "Sweden"
+  ]
+};
+
+// ── Room Store ─────────────────────────────────────────────────────
+const rooms = {};
+
+function randomCode() {
+  // Avoid 0/O, 1/I for readability
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+// ── Socket Logic ───────────────────────────────────────────────────
+io.on('connection', (socket) => {
+
+  // ── Create Room ──
+  socket.on('create-room', ({ playerName }) => {
+    let code;
+    do { code = randomCode(); } while (rooms[code]);
+
+    const player = { id: socket.id, name: playerName, isHost: true };
+    rooms[code] = {
+      host: socket.id,
+      players: [player],
+      gameState: 'lobby',   // lobby | playing | ended
+      category: null,
+      secretWord: null,
+      imposterId: null,
+      roles: {}
+    };
+
+    socket.join(code);
+    socket.data.roomCode = code;
+    socket.data.playerName = playerName;
+
+    socket.emit('room-created', {
+      roomCode: code,
+      players: rooms[code].players,
+      categories: Object.keys(CATEGORIES)
+    });
+  });
+
+  // ── Join Room ──
+  socket.on('join-room', ({ roomCode, playerName }) => {
+    const room = rooms[roomCode];
+    if (!room)
+      return socket.emit('game-error', { message: 'Room not found. Check the code and try again.' });
+    if (room.gameState !== 'lobby')
+      return socket.emit('game-error', { message: 'A game is already in progress in this room.' });
+    if (room.players.some(p => p.name === playerName))
+      return socket.emit('game-error', { message: 'That name is already taken. Pick a different name.' });
+    if (room.players.length >= 12)
+      return socket.emit('game-error', { message: 'Room is full (max 12 players).' });
+
+    const player = { id: socket.id, name: playerName, isHost: false };
+    room.players.push(player);
+    socket.join(roomCode);
+    socket.data.roomCode = roomCode;
+    socket.data.playerName = playerName;
+
+    socket.emit('room-joined', {
+      roomCode,
+      players: room.players,
+      categories: Object.keys(CATEGORIES)
+    });
+
+    // Notify everyone else
+    io.to(roomCode).emit('players-updated', { players: room.players });
+  });
+
+  // ── Start Game ──
+  socket.on('start-game', ({ category }) => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms[roomCode];
+    if (!room || room.host !== socket.id) return;
+    if (!CATEGORIES[category])
+      return socket.emit('game-error', { message: 'Invalid category.' });
+    if (room.players.length < 2)
+      return socket.emit('game-error', { message: 'Need at least 2 players to start.' });
+
+    const words = CATEGORIES[category];
+    const secretWord = words[Math.floor(Math.random() * words.length)];
+    const imposterIndex = Math.floor(Math.random() * room.players.length);
+
+    room.category = category;
+    room.secretWord = secretWord;
+    room.imposterId = room.players[imposterIndex].id;
+    room.gameState = 'playing';
+    room.roles = {};
+
+    room.players.forEach(p => {
+      room.roles[p.id] = {
+        isImposter: p.id === room.imposterId,
+        word: p.id === room.imposterId ? null : secretWord
+      };
+    });
+
+    io.to(roomCode).emit('game-started', { category });
+  });
+
+  // ── Get My Role (private — only returned to requesting socket) ──
+  socket.on('get-my-role', () => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms[roomCode];
+    if (!room || !room.roles[socket.id]) return;
+    socket.emit('your-role', room.roles[socket.id]);
+  });
+
+  // ── End Game (imposter or host can trigger) ──
+  socket.on('end-game', () => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms[roomCode];
+    if (!room) return;
+    if (room.imposterId !== socket.id && room.host !== socket.id) return;
+
+    const imposterPlayer = room.players.find(p => p.id === room.imposterId);
+    room.gameState = 'ended';
+
+    io.to(roomCode).emit('game-ended', {
+      secretWord: room.secretWord,
+      imposterName: imposterPlayer ? imposterPlayer.name : 'Unknown',
+      category: room.category
+    });
+  });
+
+  // ── Play Again (host only) ──
+  socket.on('play-again', () => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms[roomCode];
+    if (!room || room.host !== socket.id) return;
+
+    room.gameState = 'lobby';
+    room.category = null;
+    room.secretWord = null;
+    room.imposterId = null;
+    room.roles = {};
+
+    io.to(roomCode).emit('reset-game', {
+      players: room.players,
+      categories: Object.keys(CATEGORIES)
+    });
+  });
+
+  // ── Disconnect ──
+  socket.on('disconnect', () => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode || !rooms[roomCode]) return;
+
+    const room = rooms[roomCode];
+    room.players = room.players.filter(p => p.id !== socket.id);
+
+    if (room.players.length === 0) {
+      delete rooms[roomCode];
+      return;
+    }
+
+    // Transfer host if host left
+    if (room.host === socket.id) {
+      room.host = room.players[0].id;
+      room.players[0].isHost = true;
+    }
+
+    io.to(roomCode).emit('players-updated', { players: room.players });
+  });
+});
+
+// ── Start Server ───────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`\n  IMPOSTER game running at http://localhost:${PORT}\n`);
+});
