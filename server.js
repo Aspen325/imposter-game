@@ -119,7 +119,10 @@ io.on('connection', (socket) => {
   socket.on('start-game', ({ category }) => {
     const roomCode = socket.data.roomCode;
     const room = rooms[roomCode];
-    if (!room || room.host !== socket.id) return;
+    if (!room)
+      return socket.emit('game-error', { message: 'Room not found. Please refresh and rejoin.' });
+    if (room.host !== socket.id) return;
+    if (room.gameState !== 'lobby') return;
     if (!CATEGORIES[category])
       return socket.emit('game-error', { message: 'Invalid category.' });
     if (room.players.length < 2)

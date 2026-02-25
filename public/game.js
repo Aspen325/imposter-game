@@ -175,6 +175,8 @@ function updateStartButton() {
 
 function startGame() {
   if (!state.selectedCategory) return showToast('Pick a category first!', 'error');
+  const btn = document.getElementById('start-btn');
+  if (btn) btn.disabled = true;
   socket.emit('start-game', { category: state.selectedCategory });
 }
 
@@ -378,6 +380,7 @@ socket.on('reset-game', ({ players, categories }) => {
 
 socket.on('game-error', ({ message }) => {
   showToast(message, 'error');
+  updateStartButton();
 });
 
 socket.on('disconnect', () => {
