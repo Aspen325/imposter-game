@@ -219,9 +219,6 @@ function revealRole() {
 }
 
 function displayRole({ isImposter, word }) {
- function displayRole({ isImposter, word }) {
-  console.log('Role received:', isImposter, word); // add this
-  ...
   state.isImposter     = isImposter;
   state.hasRevealedRole = true;
 

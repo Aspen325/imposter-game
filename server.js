@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const { randomInt } = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -53,7 +54,7 @@ const rooms = {};
 function randomCode() {
   // Avoid 0/O, 1/I for readability
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return Array.from({ length: 6 }, () => chars[randomInt(chars.length)]).join('');
 }
 
 // ── Socket Logic ───────────────────────────────────────────────────
@@ -125,8 +126,8 @@ io.on('connection', (socket) => {
       return socket.emit('game-error', { message: 'Need at least 2 players to start.' });
 
     const words = CATEGORIES[category];
-    const secretWord = words[Math.floor(Math.random() * words.length)];
-    const imposterIndex = Math.floor(Math.random() * room.players.length);
+    const secretWord = words[randomInt(words.length)];
+    const imposterIndex = randomInt(room.players.length);
 
     room.category = category;
     room.secretWord = secretWord;
