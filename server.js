@@ -5,8 +5,13 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  pingInterval: 25000,
+  pingTimeout: 10000,   // detect dead connections faster than the 20s default
+  upgradeTimeout: 10000 // limit time allowed for the WS upgrade handshake
+});
 
+app.set('trust proxy', 1); // trust Railway's reverse proxy
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Categories & Words ─────────────────────────────────────────────
@@ -48,6 +53,9 @@ const CATEGORIES = {
 
 // ── Room Store ─────────────────────────────────────────────────────
 const rooms = {};
+
+// Tracks pending disconnect timers so we can cancel them on reconnect
+const disconnectTimers = {};
 
 function randomCode() {
   // Avoid 0/O, 1/I for readability
@@ -186,26 +194,75 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ── Disconnect ──
-  socket.on('disconnect', () => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode || !rooms[roomCode]) return;
-
+  // ── Rejoin Room (after reconnection) ──
+  socket.on('rejoin-room', ({ roomCode, playerName }) => {
     const room = rooms[roomCode];
-    room.players = room.players.filter(p => p.id !== socket.id);
+    if (!room) return socket.emit('rejoin-failed', { message: 'Room no longer exists.' });
 
-    if (room.players.length === 0) {
-      delete rooms[roomCode];
-      return;
+    const existingPlayer = room.players.find(p => p.name === playerName);
+    if (!existingPlayer) return socket.emit('rejoin-failed', { message: 'Could not rejoin — please re-enter the room.' });
+
+    const oldSocketId = existingPlayer.id;
+
+    // Cancel the pending removal timer for this player
+    if (disconnectTimers[oldSocketId]) {
+      clearTimeout(disconnectTimers[oldSocketId]);
+      delete disconnectTimers[oldSocketId];
     }
 
-    // Transfer host if host left
-    if (room.host === socket.id) {
-      room.host = room.players[0].id;
-      room.players[0].isHost = true;
+    // Remap all old socket.id references to the new socket.id
+    existingPlayer.id = socket.id;
+    if (room.host === oldSocketId)     room.host = socket.id;
+    if (room.imposterId === oldSocketId) room.imposterId = socket.id;
+    if (room.roles[oldSocketId]) {
+      room.roles[socket.id] = room.roles[oldSocketId];
+      delete room.roles[oldSocketId];
     }
+
+    socket.join(roomCode);
+    socket.data.roomCode   = roomCode;
+    socket.data.playerName = playerName;
+
+    socket.emit('rejoined-room', {
+      roomCode,
+      players:   room.players,
+      categories: Object.keys(CATEGORIES),
+      gameState: room.gameState,
+      category:  room.category
+    });
 
     io.to(roomCode).emit('players-updated', { players: room.players });
+  });
+
+  // ── Disconnect ──
+  socket.on('disconnect', () => {
+    const roomCode   = socket.data.roomCode;
+    if (!roomCode || !rooms[roomCode]) return;
+
+    // Give the player 10 seconds to reconnect before removing them.
+    // If they reconnect and emit 'rejoin-room' the timer is cancelled above.
+    disconnectTimers[socket.id] = setTimeout(() => {
+      delete disconnectTimers[socket.id];
+
+      const room = rooms[roomCode];
+      if (!room) return;
+
+      room.players = room.players.filter(p => p.id !== socket.id);
+      delete room.roles[socket.id]; // clean up stale role data
+
+      if (room.players.length === 0) {
+        delete rooms[roomCode];
+        return;
+      }
+
+      // Transfer host if host left
+      if (room.host === socket.id) {
+        room.host = room.players[0].id;
+        room.players[0].isHost = true;
+      }
+
+      io.to(roomCode).emit('players-updated', { players: room.players });
+    }, 10000); // 10-second grace period
   });
 });
 
