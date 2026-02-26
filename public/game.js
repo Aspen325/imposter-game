@@ -3,6 +3,7 @@
 ════════════════════════════════════════════════════ */
 
 const socket = io({
+  transports:           ['websocket', 'polling'], // prefer WebSocket; fall back to polling
   reconnectionAttempts: 10,
   reconnectionDelay:    1000,
   reconnectionDelayMax: 5000

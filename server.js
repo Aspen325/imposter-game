@@ -7,9 +7,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   pingInterval: 25000,
-  pingTimeout: 10000  // detect dead connections faster than the 20s default
+  pingTimeout: 10000,   // detect dead connections faster than the 20s default
+  upgradeTimeout: 10000 // limit time allowed for the WS upgrade handshake
 });
 
+app.set('trust proxy', 1); // trust Railway's reverse proxy
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Categories & Words ─────────────────────────────────────────────
@@ -246,6 +248,7 @@ io.on('connection', (socket) => {
       if (!room) return;
 
       room.players = room.players.filter(p => p.id !== socket.id);
+      delete room.roles[socket.id]; // clean up stale role data
 
       if (room.players.length === 0) {
         delete rooms[roomCode];
