@@ -13,7 +13,9 @@ const state = {
   selectedCategory: null,
   players:          [],
   hasRevealedRole:  false,
-  category:         ''
+  category:         '',
+  myWord:           '',
+  chatUnread:       0
 };
 
 // ── Utility: Screen Management ──────────────────────────────────
@@ -78,6 +80,7 @@ function enterLobby({ roomCode, players, categories, isHost }) {
   state.isHost    = isHost;
   state.players   = players;
   state.selectedCategory = null;
+  showChatFab();
 
   document.getElementById('display-room-code').textContent = roomCode;
 
@@ -223,6 +226,7 @@ function revealRole() {
 function displayRole({ isImposter, word }) {
   state.isImposter     = isImposter;
   state.hasRevealedRole = true;
+  state.myWord = isImposter ? '' : word;
 
   // Swap hidden → shown
   document.getElementById('role-hidden').classList.add('hidden');
@@ -260,6 +264,15 @@ function enterPlayingScreen() {
 
   renderPlayerList('playing-player-list', state.players);
   document.getElementById('playing-player-count').textContent = state.players.length;
+
+  // Show word reminder for innocent players
+  const reminder = document.getElementById('word-reminder');
+  if (!state.isImposter && state.myWord) {
+    document.getElementById('word-reminder-text').textContent = state.myWord;
+    reminder.classList.remove('hidden');
+  } else {
+    reminder.classList.add('hidden');
+  }
 
   const imposterControls  = document.getElementById('imposter-controls');
   const hostEndControls   = document.getElementById('host-end-controls');
@@ -366,6 +379,7 @@ socket.on('reset-game', ({ players, categories }) => {
   state.isImposter      = false;
   state.hasRevealedRole = false;
   state.selectedCategory = null;
+  state.myWord          = '';
 
   const myPlayer = players.find(p => p.name === state.myName);
   state.isHost = myPlayer ? myPlayer.isHost : false;
@@ -386,3 +400,88 @@ socket.on('game-error', ({ message }) => {
 socket.on('disconnect', () => {
   showToast('Disconnected from server. Refresh to reconnect.', 'error');
 });
+
+socket.on('chat-message', ({ name, text }) => {
+  const box = document.getElementById('chat-messages');
+  const panel = document.getElementById('chat-panel');
+  const isMe = name === state.myName;
+
+  // Remove placeholder on first message
+  const empty = box.querySelector('.chat-empty');
+  if (empty) empty.remove();
+
+  const msg = document.createElement('div');
+  msg.className = `chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-other'}`;
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'chat-msg-name';
+  nameEl.textContent = isMe ? 'You' : name;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.textContent = text;
+
+  msg.appendChild(nameEl);
+  msg.appendChild(bubble);
+  box.appendChild(msg);
+  box.scrollTop = box.scrollHeight;
+
+  // Badge when panel is closed
+  if (panel.classList.contains('hidden') && !isMe) {
+    state.chatUnread += 1;
+    updateChatBadge();
+  }
+});
+
+// ════════════════════════════════════════════════════
+// CHAT
+// ════════════════════════════════════════════════════
+
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  const isOpen = !panel.classList.contains('hidden');
+  if (isOpen) {
+    panel.classList.add('hidden');
+  } else {
+    panel.classList.remove('hidden');
+    state.chatUnread = 0;
+    updateChatBadge();
+    const input = document.getElementById('chat-input');
+    if (input) input.focus();
+    // Scroll to bottom
+    const box = document.getElementById('chat-messages');
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+}
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chat-message', { text });
+  input.value = '';
+}
+
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendChat();
+});
+
+function updateChatBadge() {
+  const badge = document.getElementById('chat-unread-badge');
+  if (!badge) return;
+  if (state.chatUnread > 0) {
+    badge.textContent = state.chatUnread > 9 ? '9+' : state.chatUnread;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function showChatFab() {
+  document.getElementById('chat-fab').classList.remove('hidden');
+}
+
+function hideChatFab() {
+  document.getElementById('chat-fab').classList.add('hidden');
+  document.getElementById('chat-panel').classList.add('hidden');
+}

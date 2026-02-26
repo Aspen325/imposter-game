@@ -156,6 +156,18 @@ io.on('connection', (socket) => {
     socket.emit('your-role', room.roles[socket.id]);
   });
 
+  // ── Chat ──
+  socket.on('chat-message', ({ text }) => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms[roomCode];
+    if (!room || room.gameState === 'ended') return;
+    const name = socket.data.playerName;
+    if (typeof text !== 'string') return;
+    const trimmed = text.trim().slice(0, 200);
+    if (!trimmed) return;
+    io.to(roomCode).emit('chat-message', { name, text: trimmed });
+  });
+
   // ── End Game (imposter or host can trigger) ──
   socket.on('end-game', () => {
     const roomCode = socket.data.roomCode;
