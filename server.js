@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const { randomInt } = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -60,7 +61,7 @@ const disconnectTimers = {};
 function randomCode() {
   // Avoid 0/O, 1/I for readability
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return Array.from({ length: 6 }, () => chars[randomInt(chars.length)]).join('');
 }
 
 // ── Socket Logic ───────────────────────────────────────────────────
@@ -125,15 +126,18 @@ io.on('connection', (socket) => {
   socket.on('start-game', ({ category }) => {
     const roomCode = socket.data.roomCode;
     const room = rooms[roomCode];
-    if (!room || room.host !== socket.id) return;
+    if (!room)
+      return socket.emit('game-error', { message: 'Room not found. Please refresh and rejoin.' });
+    if (room.host !== socket.id) return;
+    if (room.gameState !== 'lobby') return;
     if (!CATEGORIES[category])
       return socket.emit('game-error', { message: 'Invalid category.' });
     if (room.players.length < 2)
       return socket.emit('game-error', { message: 'Need at least 2 players to start.' });
 
     const words = CATEGORIES[category];
-    const secretWord = words[Math.floor(Math.random() * words.length)];
-    const imposterIndex = Math.floor(Math.random() * room.players.length);
+    const secretWord = words[randomInt(words.length)];
+    const imposterIndex = randomInt(room.players.length);
 
     room.category = category;
     room.secretWord = secretWord;
@@ -157,6 +161,18 @@ io.on('connection', (socket) => {
     const room = rooms[roomCode];
     if (!room || !room.roles[socket.id]) return;
     socket.emit('your-role', room.roles[socket.id]);
+  });
+
+  // ── Chat ──
+  socket.on('chat-message', ({ text }) => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms[roomCode];
+    if (!room || room.gameState === 'ended') return;
+    const name = socket.data.playerName;
+    if (typeof text !== 'string') return;
+    const trimmed = text.trim().slice(0, 200);
+    if (!trimmed) return;
+    io.to(roomCode).emit('chat-message', { name, text: trimmed });
   });
 
   // ── End Game (imposter or host can trigger) ──

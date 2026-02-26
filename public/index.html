@@ -8,12 +8,20 @@
 </head>
 <body>
 
+  <!-- Ambient background orbs -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
   <!-- ══════════════════════════════════════════════════
        HOME SCREEN
   ══════════════════════════════════════════════════ -->
   <div id="screen-home" class="screen active">
     <div class="container">
       <header class="logo-header">
+        <div class="logo-eyebrow">Online Multiplayer</div>
         <div class="logo-title">IMPOSTER</div>
         <p class="logo-sub">Who among you is lying?</p>
       </header>
@@ -34,6 +42,21 @@
                  autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-size:1.2rem;" />
         </div>
         <button class="btn btn-outline" onclick="joinRoom()">Join Room</button>
+      </div>
+
+      <div class="how-it-works">
+        <div class="hiw-item">
+          <span class="hiw-icon">🎭</span>
+          <span>One player is secretly the Imposter</span>
+        </div>
+        <div class="hiw-item">
+          <span class="hiw-icon">🔍</span>
+          <span>Others know the secret word — they don't</span>
+        </div>
+        <div class="hiw-item">
+          <span class="hiw-icon">🗳️</span>
+          <span>Discuss, vote, and unmask the Imposter</span>
+        </div>
       </div>
     </div>
   </div>
@@ -146,6 +169,12 @@
         </div>
       </div>
 
+      <!-- Word reminder shown only for innocent players -->
+      <div id="word-reminder" class="word-reminder hidden">
+        <span class="word-reminder-label">Your word</span>
+        <strong id="word-reminder-text" class="word-reminder-value"></strong>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h3>Players</h3>
@@ -229,7 +258,29 @@
   <!-- Toast notification -->
   <div id="toast" class="toast hidden"></div>
 
+  <!-- ══════════════════════════════════════════════════
+       FLOATING CHAT (visible in lobby + playing)
+  ══════════════════════════════════════════════════ -->
+  <div id="chat-panel" class="chat-panel hidden">
+    <div class="chat-panel-header">
+      <span class="chat-panel-title">💬 Chat</span>
+      <button class="chat-close-btn" onclick="toggleChat()" aria-label="Close chat">✕</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-empty">No messages yet…</div>
+    </div>
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Say something…" maxlength="200" autocomplete="off" />
+      <button class="btn-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <button id="chat-fab" class="chat-fab hidden" onclick="toggleChat()" aria-label="Open chat">
+    <span class="chat-fab-icon">💬</span>
+    <span id="chat-unread-badge" class="chat-unread-badge hidden">0</span>
+  </button>
+
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js"></script>
+  <script src="game.js?v=4"></script>
 </body>
 </html>
