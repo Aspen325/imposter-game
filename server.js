@@ -44,7 +44,12 @@ const CATEGORIES = {
     "India", "Germany", "Spain", "Egypt",
     "South Korea", "Argentina", "Nigeria",
     "Russia", "Thailand", "Morocco", "Colombia", "Sweden"
-  ]
+  ],
+  "random": [
+    "goon", "blanca", "pooper", "raymonds",
+    "christycream", "realms", "mr.rohner", "is it sweaty",
+    "charles", "nina", "milo", "black people",
+    "makenzie(joeys ebony sister)"
 };
 
 // ── Room Store ─────────────────────────────────────────────────────
