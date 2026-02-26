@@ -2,7 +2,11 @@
    IMPOSTER — Frontend Game Logic
 ════════════════════════════════════════════════════ */
 
-const socket = io();
+const socket = io({
+  reconnectionAttempts: 10,
+  reconnectionDelay:    1000,
+  reconnectionDelayMax: 5000
+});
 
 // ── State ───────────────────────────────────────────────────────
 const state = {
@@ -381,6 +385,40 @@ socket.on('game-error', ({ message }) => {
   showToast(message, 'error');
 });
 
+socket.on('connect', () => {
+  // After a reconnect (state.roomCode is set), try to silently rejoin the room.
+  // On the very first connection state.roomCode is empty, so this is a no-op.
+  if (state.roomCode && state.myName) {
+    socket.emit('rejoin-room', { roomCode: state.roomCode, playerName: state.myName });
+  }
+});
+
 socket.on('disconnect', () => {
-  showToast('Disconnected from server. Refresh to reconnect.', 'error');
+  showToast('Connection lost. Reconnecting…', 'error');
+});
+
+socket.on('rejoined-room', ({ roomCode, players, categories, gameState, category }) => {
+  state.players = players;
+  const myPlayer = players.find(p => p.name === state.myName);
+  state.isHost   = myPlayer ? myPlayer.isHost : false;
+
+  if (gameState === 'lobby' || gameState === 'ended') {
+    enterLobby({ roomCode, players, categories, isHost: state.isHost });
+  } else if (gameState === 'playing') {
+    // Show the role-reveal screen so the player re-fetches their role
+    state.category      = category;
+    state.hasRevealedRole = false;
+    state.isImposter    = false;
+    enterRoleReveal(category);
+  }
+
+  showToast('Reconnected!', 'success');
+});
+
+socket.on('rejoin-failed', ({ message }) => {
+  // Grace period expired or room is gone; reset to home screen
+  state.roomCode = '';
+  state.myName   = '';
+  showScreen('screen-home');
+  showToast(message || 'Reconnection failed. Please rejoin the room.', 'error');
 });
