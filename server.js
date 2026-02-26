@@ -43,6 +43,7 @@ const CATEGORIES = {
     "christycream", "realms", "mr.rohner", "is it sweaty",
     "charles", "nina", "milo", "black people",
     "makenzie(joeys ebony sister)"
+  ]
 };
 
 // ── Room Store ─────────────────────────────────────────────────────
