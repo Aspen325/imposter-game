@@ -38,13 +38,6 @@ const CATEGORIES = {
     "Formula 1", "Gymnastics", "Volleyball",
     "Hockey", "Wrestling", "MMA", "Marathon", "Skateboarding"
   ],
-  "Countries": [
-    "France", "Japan", "Brazil", "Australia",
-    "Canada", "Mexico", "Italy", "China",
-    "India", "Germany", "Spain", "Egypt",
-    "South Korea", "Argentina", "Nigeria",
-    "Russia", "Thailand", "Morocco", "Colombia", "Sweden"
-  ],
   "random": [
     "goon", "blanca", "pooper", "raymonds",
     "christycream", "realms", "mr.rohner", "is it sweaty",
