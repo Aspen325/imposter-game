@@ -8,6 +8,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Never cache HTML so version-stamped asset URLs always take effect
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Categories & Words ─────────────────────────────────────────────
